@@ -183,6 +183,90 @@ def files_mkdir():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/files/read')
+def files_read():
+    """Read a file's content from the host filesystem."""
+    path = request.args.get('path', '')
+    if not path:
+        return jsonify({'error': 'path required'}), 400
+    real = safe_path(path)
+    if not os.path.isfile(real):
+        return jsonify({'error': 'not a file', 'path': real}), 404
+    try:
+        with open(real, 'r', errors='replace') as f:
+            content = f.read()
+        log('debug', f'read {real}', 'files')
+        return jsonify({'path': real, 'content': content})
+    except PermissionError:
+        return jsonify({'error': 'permission denied'}), 403
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/files/write', methods=['POST'])
+def files_write():
+    """Write content to a file on the host filesystem."""
+    data    = request.get_json(force=True, silent=True) or {}
+    path    = data.get('path', '')
+    content = data.get('content', '')
+    if not path:
+        return jsonify({'error': 'path required'}), 400
+    real = safe_path(path)
+    try:
+        os.makedirs(os.path.dirname(real), exist_ok=True)
+        with open(real, 'w') as f:
+            f.write(content)
+        log('info', f'write {real}', 'files')
+        return jsonify({'status': 'ok', 'path': real})
+    except PermissionError:
+        return jsonify({'error': 'permission denied'}), 403
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/files/delete', methods=['POST'])
+def files_delete():
+    """Delete a file or directory on the host filesystem."""
+    import shutil
+    data = request.get_json(force=True, silent=True) or {}
+    path = data.get('path', '')
+    if not path:
+        return jsonify({'error': 'path required'}), 400
+    real = safe_path(path)
+    if not os.path.exists(real):
+        return jsonify({'error': 'not found'}), 404
+    try:
+        if os.path.isdir(real):
+            shutil.rmtree(real)
+        else:
+            os.remove(real)
+        log('info', f'delete {real}', 'files')
+        return jsonify({'status': 'ok'})
+    except PermissionError:
+        return jsonify({'error': 'permission denied'}), 403
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/files/rename', methods=['POST'])
+def files_rename():
+    """Rename or move a file or directory on the host filesystem."""
+    data     = request.get_json(force=True, silent=True) or {}
+    old_path = data.get('old', '')
+    new_path = data.get('new', '')
+    if not old_path or not new_path:
+        return jsonify({'error': 'old and new paths required'}), 400
+    old_real = safe_path(old_path)
+    new_real = safe_path(new_path)
+    if not os.path.exists(old_real):
+        return jsonify({'error': 'source not found'}), 404
+    try:
+        os.makedirs(os.path.dirname(new_real), exist_ok=True)
+        os.rename(old_real, new_real)
+        log('info', f'rename {old_real} → {new_real}', 'files')
+        return jsonify({'status': 'ok'})
+    except PermissionError:
+        return jsonify({'error': 'permission denied'}), 403
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # ── Bonjour proxy registration ─────────────────────────────────────────────────
 
 def register_with_bonjour():
