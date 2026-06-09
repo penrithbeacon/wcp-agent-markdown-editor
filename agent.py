@@ -136,14 +136,20 @@ def files_drives():
     """List available mount points / drives on the host."""
     drives = []
     if platform.system() == 'Darwin':
-        # macOS: list /Volumes + home
         home = os.path.expanduser('~')
         drives.append({'name': 'Home', 'path': home, 'type': 'home'})
         if os.path.isdir('/Volumes'):
-            for name in sorted(os.listdir('/Volumes')):
+            vols = []
+            for name in os.listdir('/Volumes'):
+                # Filter hidden volumes (dot-prefix) and Apple-internal volumes (com.apple.*)
+                if name.startswith('.') or name.startswith('com.apple'):
+                    continue
                 full = os.path.join('/Volumes', name)
                 if os.path.isdir(full):
-                    drives.append({'name': name, 'path': full, 'type': 'volume'})
+                    vols.append({'name': name, 'path': full, 'type': 'volume'})
+            # Sort alphabetically; entries starting with a digit sort before letters
+            vols.sort(key=lambda v: (0 if v['name'][0].isdigit() else 1, v['name'].lower()))
+            drives.extend(vols)
     else:
         drives.append({'name': 'Root', 'path': '/', 'type': 'root'})
         drives.append({'name': 'Home', 'path': os.path.expanduser('~'), 'type': 'home'})
@@ -193,8 +199,12 @@ def files_read():
     if not os.path.isfile(real):
         return jsonify({'error': 'not a file', 'path': real}), 404
     try:
-        with open(real, 'r', errors='replace') as f:
-            content = f.read()
+        try:
+            with open(real, 'r', encoding='utf-8-sig') as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            with open(real, 'r', encoding='latin-1') as f:
+                content = f.read()
         log('debug', f'read {real}', 'files')
         return jsonify({'path': real, 'content': content})
     except PermissionError:

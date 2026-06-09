@@ -28,7 +28,7 @@ PKG_ROOT=/tmp/wcp-agent-pkg-root
 rm -rf "$PKG_ROOT"
 mkdir -p "$PKG_ROOT/Applications"
 
-# Copy .app bundle
+# Copy agent .app bundle
 cp -r "dist/Markdown Editor Agent.app" "$PKG_ROOT/Applications/"
 
 # py2app builds with drwx------ (700); fix to 755 so the installed app is usable
@@ -38,6 +38,21 @@ chmod -R 755 "$PKG_ROOT/Applications/Markdown Editor Agent.app"
 RESOURCES_DIR="$PKG_ROOT/Applications/Markdown Editor Agent.app/Contents/Resources"
 mkdir -p "$RESOURCES_DIR"
 cp com.penrithbeacon.markdown-editor-agent.plist "$RESOURCES_DIR/"
+echo "✓ Agent app staged"
+
+# ── Step 2b: Build uninstaller .app ──────────────────────────────────────────
+echo "→ Step 2b: Building uninstaller app from AppleScript..."
+UNINSTALL_TMP="/tmp/Uninstall WCP Markdown Editor Agent.app"
+UNINSTALL_DST="$PKG_ROOT/Applications/Uninstall WCP Markdown Editor Agent.app"
+rm -rf "$UNINSTALL_TMP"
+osacompile -o "$UNINSTALL_TMP" uninstall.applescript
+if [ ! -d "$UNINSTALL_TMP" ]; then
+  echo "✗ Uninstaller build failed"
+  exit 1
+fi
+cp -r "$UNINSTALL_TMP" "$PKG_ROOT/Applications/"
+chmod -R 755 "$UNINSTALL_DST"
+echo "✓ Uninstaller app ready: $UNINSTALL_DST"
 echo "✓ Staging root ready: $PKG_ROOT"
 echo ""
 
@@ -74,13 +89,21 @@ sed -i '' "s|/Users/Shared/Logs|$USER_HOME/Library/Logs|g" "$PLIST_DST"
 chown "$LOGGED_IN_USER" "$PLIST_DST"
 echo "postinstall: plist installed at $PLIST_DST"
 
-# Fix ownership and permissions on the installed .app bundle.
+# Fix ownership and permissions on the agent .app bundle.
 # pkgbuild preserves source permissions; py2app builds drwx------ (owner-only).
 # Without this the logged-in user cannot enter the bundle or execute the binary.
 APP="/Applications/Markdown Editor Agent.app"
 chown -R "$LOGGED_IN_USER:staff" "$APP"
 chmod -R 755 "$APP"
 echo "postinstall: fixed ownership and permissions on $APP"
+
+# Fix ownership and permissions on the uninstaller .app.
+UNINSTALL_APP="/Applications/Uninstall WCP Markdown Editor Agent.app"
+if [ -d "$UNINSTALL_APP" ]; then
+  chown -R "$LOGGED_IN_USER:staff" "$UNINSTALL_APP"
+  chmod -R 755 "$UNINSTALL_APP"
+  echo "postinstall: fixed ownership and permissions on $UNINSTALL_APP"
+fi
 
 # Load the LaunchAgent for the logged-in user
 launchctl bootstrap "gui/$LOGGED_IN_UID" "$PLIST_DST" 2>/dev/null \
