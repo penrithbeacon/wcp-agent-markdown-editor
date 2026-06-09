@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.penrithbeacon.markdown-editor-agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Applications/Markdown Editor Agent.app/Contents/MacOS/agent</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/Shared/Logs/markdown-editor-agent/agent.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/Shared/Logs/markdown-editor-agent/agent-error.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>AGENT_PORT</key>
+        <string>3749</string>
+        <key>BONJOUR_PORT</key>
+        <string>3746</string>
+    </dict>
+</dict>
+</plist>
