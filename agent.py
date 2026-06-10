@@ -21,7 +21,7 @@ CORS(app)
 
 PORT           = int(os.environ.get('AGENT_PORT', 3749))
 BONJOUR_PORT   = int(os.environ.get('BONJOUR_PORT', 3746))  # proxy stub port
-VERSION        = '1.0.0'
+VERSION        = '1.0.2'
 AGENT_NAME     = 'wcp-agent-markdown-editor'
 LOG_DIR        = os.path.expanduser(f'~/Library/Logs/{AGENT_NAME}')
 LOG_FILE       = os.path.join(LOG_DIR, 'agent.log')
@@ -114,17 +114,21 @@ def files_browse():
         return jsonify({'error': 'not a directory', 'path': path}), 400
     try:
         entries = []
-        for name in sorted(os.listdir(real)):
-            full = os.path.join(real, name)
+        # Use scandir() for a single syscall that returns both name and type,
+        # which is significantly faster than listdir() + isdir() on network mounts.
+        with os.scandir(real) as it:
+            raw = list(it)
+        raw.sort(key=lambda e: e.name)
+        for entry in raw:
             try:
-                is_dir = os.path.isdir(full)
+                is_dir = entry.is_dir(follow_symlinks=True)
                 entries.append({
-                    'name': name,
-                    'path': full,
+                    'name': entry.name,
+                    'path': entry.path,
                     'type': 'dir' if is_dir else 'file',
-                    'ext':  os.path.splitext(name)[1].lower()
+                    'ext':  os.path.splitext(entry.name)[1].lower()
                 })
-            except PermissionError:
+            except (PermissionError, OSError):
                 pass
         log('debug', f'browse {real} → {len(entries)} entries', 'files')
         return jsonify({'path': real, 'entries': entries})
@@ -223,7 +227,7 @@ def files_write():
     real = safe_path(path)
     try:
         os.makedirs(os.path.dirname(real), exist_ok=True)
-        with open(real, 'w') as f:
+        with open(real, 'w', encoding='utf-8') as f:
             f.write(content)
         log('info', f'write {real}', 'files')
         return jsonify({'status': 'ok', 'path': real})
@@ -311,4 +315,4 @@ if __name__ == '__main__':
     os.makedirs(LOG_DIR, exist_ok=True)
     log('info', f'{AGENT_NAME} v{VERSION} starting on 127.0.0.1:{PORT}', 'boot')
     threading.Thread(target=register_with_bonjour, daemon=True).start()
-    app.run(host='127.0.0.1', port=PORT, debug=False)
+    app.run(host='127.0.0.1', port=PORT, debug=False, threaded=True)
